@@ -6,11 +6,14 @@ from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 import certifi
+import json
 os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
+# Convert the Google creds from secret string to dict
+google_creds_dict = json.loads(st.secrets["GOOGLE_CREDS"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open("Herd Mentality")
 

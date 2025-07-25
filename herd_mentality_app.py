@@ -23,7 +23,7 @@ answers_ws = sheet.worksheet("answers")
 scores_ws = sheet.worksheet("scores")
 questions_ws = sheet.worksheet("questions")
 
-# Ensure headers exist
+# --- Ensure headers exist ---
 if not questions_ws.get_all_values():
     questions_ws.append_row(["QUESTION_TEXT"])
 if not answers_ws.get_all_values():
@@ -45,13 +45,12 @@ with host_tab:
     with col1:
         if st.button("Start Round"):
             questions_ws.append_row([question])
-            answers_ws.resize(rows=1)  # Keep header only
-            st.session_state["question"] = question
+            answers_ws.resize(rows=1)  # Reset to just headers
+            st.session_state.question = question
             st.success("New round started!")
 
     with col2:
         if st.button("Reset Game ❌"):
-            # Clear answers and questions, keep score
             questions_ws.resize(rows=1)
             answers_ws.resize(rows=1)
             st.session_state.clear()
@@ -62,11 +61,10 @@ with host_tab:
     current_q = q_records[-1]["QUESTION_TEXT"] if q_records else "No question yet."
     st.markdown(f"### ❓ Current Question:\n**{current_q}**")
 
-    # Reveal answers and update scores
+    # Safely load and display answers
     records = answers_ws.get_all_records()
-    df_answers = pd.DataFrame(records)
-
-    if not df_answers.empty:
+    if records:
+        df_answers = pd.DataFrame(records)
         if st.button("Reveal Answers"):
             st.markdown("### 📥 Submitted Answers")
             st.dataframe(df_answers[["Player", "Answer"]])
@@ -93,12 +91,16 @@ with host_tab:
             for player, score in score_dict.items():
                 scores_ws.append_row([player, score, "🐄" if player == pink_holder else ""])
             st.success("Scores updated!")
+    else:
+        st.info("No answers submitted yet.")
 
     # Show scores
     score_data = scores_ws.get_all_records()
     if score_data:
         st.markdown("### 🏆 Scores")
         st.dataframe(pd.DataFrame(score_data))
+    else:
+        st.info("No scores yet. They'll appear after the first round.")
 
 # --- PLAYER VIEW ---
 with player_tab:
@@ -120,5 +122,3 @@ with player_tab:
                 st.error("Please enter both name and answer.")
     else:
         st.info("Waiting for host to start the round.")
-
-

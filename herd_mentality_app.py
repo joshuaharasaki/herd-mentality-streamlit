@@ -23,102 +23,71 @@ answers_ws = sheet.worksheet("answers")
 scores_ws = sheet.worksheet("scores")
 questions_ws = sheet.worksheet("questions")
 
-# --- Ensure headers exist ---
-if not questions_ws.get_all_values():
-    questions_ws.append_row(["QUESTION_TEXT"])
-if not answers_ws.get_all_values():
-    answers_ws.append_row(["QUESTION_TEXT", "Player", "Answer"])
-if not scores_ws.get_all_values():
-    scores_ws.append_row(["Player", "Score", "Pink Cow"])
-
-# --- Layout ---
+# --- Streamlit layout ---
 st.set_page_config(page_title="🐄 Herd Mentality", layout="centered")
 st.title("🐄 Herd Mentality Game")
 host_tab, player_tab = st.tabs(["👑 Host", "🙋 Player"])
 
 # --- HOST VIEW ---
 with host_tab:
-    st.subheader("👑 Host Controls")
-    question = st.text_input("Enter new question")
+    st.subheader("👑 Host Dashboard")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Start Round"):
-            questions_ws.append_row([question])
-            answers_ws.resize(rows=1)  # Reset to just headers
-            st.session_state.question = question
-            st.success("New round started!")
+    # Set question
+    question = st.text_input("Enter question for this round:")
+    if st.button("Start Round"):
+        questions_ws.append_row(["QUESTION_TEXT"] if questions_ws.row_count == 0 else [question])
+        st.session_state.question = question
 
-    with col2:
-        if st.button("Reset Game ❌"):
-            questions_ws.resize(rows=1)
-            answers_ws.resize(rows=1)
-            st.session_state.clear()
-            st.success("Game reset (scores preserved)")
-
-    # Show current question
-    q_records = questions_ws.get_all_records()
-    current_q = q_records[-1]["QUESTION_TEXT"] if q_records else "No question yet."
-    st.markdown(f"### ❓ Current Question:\n**{current_q}**")
-
-    # Safely load and display answers
+    # Load answers safely
     records = answers_ws.get_all_records()
-    if records:
-        df_answers = pd.DataFrame(records)
-        if st.button("Reveal Answers"):
-            st.markdown("### 📥 Submitted Answers")
-            st.dataframe(df_answers[["Player", "Answer"]])
+    df_answers = pd.DataFrame(records) if records else pd.DataFrame(columns=["QUESTION_TEXT", "Player", "Answer"])
 
-            counts = Counter(df_answers["Answer"].str.lower())
-            max_count = max(counts.values())
-            majority = [ans for ans, count in counts.items() if count == max_count]
-            st.markdown(f"🧠 **Majority Answer(s):** {majority}")
+    st.markdown(f"### ❓ Current Question: {st.session_state.get('question', 'No question yet.')}")
+    st.markdown("### 📥 Submitted Answers")
+    st.dataframe(df_answers)
 
-            # Update scores
-            score_records = scores_ws.get_all_records()
-            score_dict = {row["Player"]: int(row["Score"]) for row in score_records}
-            pink_holder = None
+    if not df_answers.empty:
+        counts = Counter(df_answers["Answer"].str.lower())
+        max_count = max(counts.values())
+        majority = [ans for ans, count in counts.items() if count == max_count]
 
-            for _, row in df_answers.iterrows():
-                player = row["Player"]
-                answer = row["Answer"].lower()
-                if answer in majority and len(majority) == 1:
-                    score_dict[player] = score_dict.get(player, 0) + 1
-                if counts[answer] == 1 and pink_holder is None:
-                    pink_holder = player
+        st.markdown(f"🧠 **Majority Answer(s):** {majority}")
 
-            scores_ws.resize(rows=1)
-            for player, score in score_dict.items():
-                scores_ws.append_row([player, score, "🐄" if player == pink_holder else ""])
-            st.success("Scores updated!")
-    else:
-        st.info("No answers submitted yet.")
+        # Update scores
+        score_records = scores_ws.get_all_records()
+        score_dict = {row["Player"]: row["Score"] for row in score_records}
+        pink_holder = None
 
-    # Show scores
-    score_data = scores_ws.get_all_records()
-    if score_data:
+        for _, row in df_answers.iterrows():
+            player, answer = row["Player"], row["Answer"].lower()
+            if answer in majority and len(majority) == 1:
+                score_dict[player] = score_dict.get(player, 0) + 1
+            if counts[answer] == 1 and pink_holder is None:
+                pink_holder = player
+
+        scores_ws.clear()
+        scores_data = [{"Player": k, "Score": v, "Pink Cow": "🐄" if k == pink_holder else ""} for k, v in score_dict.items()]
+        score_df = pd.DataFrame(scores_data)
+        set_with_dataframe(scores_ws, score_df)
+
         st.markdown("### 🏆 Scores")
-        st.dataframe(pd.DataFrame(score_data))
-    else:
-        st.info("No scores yet. They'll appear after the first round.")
+        st.dataframe(score_df)
 
 # --- PLAYER VIEW ---
 with player_tab:
-    st.subheader("🙋 Submit Your Answer")
+    st.subheader("🙋 Player View")
+
     q_records = questions_ws.get_all_records()
     latest_question = q_records[-1]["QUESTION_TEXT"] if q_records else None
 
     if latest_question:
         st.markdown(f"**Current Question:** {latest_question}")
-        pname = st.text_input("Your Name", value=st.session_state.get("pname", ""))
-        pans = st.text_input("Your Answer")
-
-        if st.button("Submit Answer"):
-            if pname.strip() and pans.strip():
-                st.session_state["pname"] = pname.strip()
+        with st.form("player_submission_form"):
+            pname = st.text_input("Your Name")
+            pans = st.text_input("Your Answer")
+            psubmit = st.form_submit_button("Submit Answer")
+            if psubmit and pname.strip() and pans.strip():
                 answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
                 st.success("Answer submitted!")
-            else:
-                st.error("Please enter both name and answer.")
     else:
-        st.info("Waiting for host to start the round.")
+        st.info("Waiting for host to set a question.")

@@ -90,29 +90,46 @@ with host_tab:
 with player_tab:
     st.subheader("🙋 Player View")
 
-    # Add a refresh button
+    # Refresh button logic
     if st.button("🔄 Refresh Question"):
         st.session_state.pop("submitted", None)
         st.session_state.pop("answer_input", None)
         st.experimental_rerun()
 
-    # Get latest question
-    q_records = questions_ws.get_all_records()
-    latest_question = q_records[-1]["QUESTION_TEXT"] if q_records else None
+    # Try to load latest question
+    try:
+        q_records = questions_ws.get_all_records()
+        latest_question = q_records[-1]["QUESTION_TEXT"] if q_records else None
+    except Exception as e:
+        st.error("❌ Failed to load the question. Please try again.")
+        latest_question = None
 
     if latest_question:
         st.markdown(f"**Current Question:** {latest_question}")
+
+        # Use session state to remember player name
+        if "player_name" not in st.session_state:
+            st.session_state.player_name = ""
+
         with st.form("player_submission_form", clear_on_submit=True):
-            pname = st.text_input("Your Name", key="player_name")
-            pans = st.text_input("Your Answer", key="answer_input")
+            pname = st.text_input("Your Name", value=st.session_state.player_name, key="player_name_input")
+            pans = st.text_input("Your Answer", value=st.session_state.get("answer_input", ""), key="answer_input")
             psubmit = st.form_submit_button("Submit Answer")
-            if psubmit and pname.strip() and pans.strip():
-                answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
-                st.session_state.submitted = True
+
+            if psubmit:
+                if pname.strip() and pans.strip():
+                    try:
+                        answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
+                        st.session_state.submitted = True
+                        st.session_state.player_name = pname.strip()
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error("❌ Failed to submit answer. Please try again.")
+                else:
+                    st.warning("Please enter both name and answer.")
 
         if st.session_state.get("submitted"):
-            st.success("Answer submitted!", icon="✅")
-            # Hide message after 4 seconds
-            st.experimental_rerun()
+            st.success("✅ Answer submitted! Click refresh to answer again or view new question.")
     else:
         st.info("Waiting for host to set a question.")
+

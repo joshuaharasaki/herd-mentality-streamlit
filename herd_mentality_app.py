@@ -86,50 +86,43 @@ with host_tab:
         st.markdown("### 🏆 Scores")
         st.dataframe(pd.DataFrame(updated))
 
-# --- PLAYER VIEW ---
+# --- PLAYER TAB ---
 with player_tab:
     st.subheader("🙋 Player View")
 
-    # Refresh button logic
+    # Add refresh logic for question and answer only
     if st.button("🔄 Refresh Question"):
-        st.session_state.pop("submitted", None)
         st.session_state.pop("answer_input", None)
-        st.experimental_rerun()
+        st.session_state.pop("answer_submitted", None)
 
-    # Try to load latest question
-    try:
-        q_records = questions_ws.get_all_records()
-        latest_question = q_records[-1]["QUESTION_TEXT"] if q_records else None
-    except Exception as e:
-        st.error("❌ Failed to load the question. Please try again.")
-        latest_question = None
+    # Load question safely
+    q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
+    latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
 
-    if latest_question:
-        st.markdown(f"**Current Question:** {latest_question}")
+    if latest_q:
+        st.markdown(f"**Current Question:** {latest_q}")
 
-        # Use session state to remember player name
-        if "player_name" not in st.session_state:
-            st.session_state.player_name = ""
+        # Player name with persistent memory
+        pname = st.text_input("Your Name", key="name_input", value=st.session_state.get("player_name", ""))
+        if pname:
+            st.session_state["player_name"] = pname
 
-        with st.form("player_submission_form", clear_on_submit=True):
-            pname = st.text_input("Your Name", value=st.session_state.player_name, key="player_name_input")
-            pans = st.text_input("Your Answer", value=st.session_state.get("answer_input", ""), key="answer_input")
-            psubmit = st.form_submit_button("Submit Answer")
+        with st.form("answer_form"):
+            pans = st.text_input("Your Answer", key="answer_input", value=st.session_state.get("answer_input", ""))
+            submit = st.form_submit_button("Submit Answer")
 
-            if psubmit:
-                if pname.strip() and pans.strip():
-                    try:
-                        answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
-                        st.session_state.submitted = True
-                        st.session_state.player_name = pname.strip()
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error("❌ Failed to submit answer. Please try again.")
-                else:
-                    st.warning("Please enter both name and answer.")
+            if submit and pname.strip() and pans.strip():
+                try:
+                    answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
+                    st.session_state["answer_submitted"] = True
+                    st.session_state["answer_input"] = ""
+                    st.success("✅ Answer submitted!")
+                except Exception as e:
+                    st.error("❌ Failed to submit. Please try again.")
 
-        if st.session_state.get("submitted"):
-            st.success("✅ Answer submitted! Click refresh to answer again or view new question.")
+        if st.session_state.get("answer_submitted"):
+            st.success("✅ Answer submitted!")
     else:
-        st.info("Waiting for host to set a question.")
+        st.info("Waiting for host to start the round.")
+
 

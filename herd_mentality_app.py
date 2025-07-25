@@ -7,6 +7,17 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import certifi
 import json
+import time
+
+def safe_append_answer(worksheet, row, retries=2):
+    for attempt in range(retries):
+        try:
+            worksheet.append_row(row)
+            return True
+        except Exception as e:
+            st.warning(f"Attempt {attempt+1} failed: {e}")
+            time.sleep(1)
+    return False
 
 # SSL fix
 os.environ['SSL_CERT_FILE'] = certifi.where()
@@ -112,12 +123,12 @@ with player_tab:
             submit = st.form_submit_button("Submit Answer")
 
             if submit and pname.strip() and pans.strip():
-                try:
-                    answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
+                success = safe_append_answer(answers_ws, [latest_q, pname.strip(), pans.strip().lower()])
+                if success:
                     st.session_state["answer_submitted"] = True
                     st.session_state["answer_input"] = ""
                     st.success("✅ Answer submitted!")
-                except Exception as e:
+                else:
                     st.error("❌ Failed to submit. Please try again.")
 
         if st.session_state.get("answer_submitted"):

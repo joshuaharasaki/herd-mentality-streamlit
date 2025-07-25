@@ -8,37 +8,20 @@ import os
 import certifi
 import json
 
-# --- Replace this with your raw credentials if not using secrets.toml ---
-# NOTE: Only use this method for local/dev environments!
-google_creds_dict = {
-    "type": "service_account",
-    "project_id": "herd-mentality-streamlit",
-    "private_key_id": "your_key_id_here",
-    "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",
-    "client_email": "herd-streamlit-bot@herd-mentality-streamlit.iam.gserviceaccount.com",
-    "client_id": "your_client_id_here",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/herd-streamlit-bot%40herd-mentality-streamlit.iam.gserviceaccount.com"
-}
-
-# --- Setup ---
+# SSL cert fix for gspread on some platforms
 os.environ['SSL_CERT_FILE'] = certifi.where()
+
+# --- Google Sheets setup using st.secrets ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+google_creds_dict = st.secrets["GOOGLE_CREDS"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds_dict, scope)
+client = gspread.authorize(creds)
+sheet = client.open("Herd Mentality")
 
-try:
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds_dict, scope)
-    client = gspread.authorize(creds)
-    sheet = client.open("Herd Mentality")
-
-    answers_ws = sheet.worksheet("answers")
-    scores_ws = sheet.worksheet("scores")
-    questions_ws = sheet.worksheet("questions")
-
-except Exception as e:
-    st.error("🔒 Failed to connect to Google Sheets.")
-    st.stop()
+# Reference worksheets
+answers_ws = sheet.worksheet("answers")
+scores_ws = sheet.worksheet("scores")
+questions_ws = sheet.worksheet("questions")
 
 # --- Streamlit layout ---
 st.set_page_config(page_title="🐄 Herd Mentality", layout="centered")
@@ -51,12 +34,10 @@ with host_tab:
 
     question = st.text_input("Enter question for this round:")
     if st.button("Start Round") and question.strip():
-        try:
-            questions_ws.append_row([question.strip()])
-            st.session_state.question = question.strip()
-        except Exception as e:
-            st.warning("Failed to start the round. Check questions sheet access.")
+        questions_ws.append_row([question.strip()])
+        st.session_state.question = question.strip()
 
+    # Load answers safely
     try:
         df_answers = pd.DataFrame(answers_ws.get_all_records())
     except:
@@ -93,7 +74,7 @@ with host_tab:
             scores_ws.clear()
             set_with_dataframe(scores_ws, score_df)
         except:
-            st.warning("Could not update scores in Google Sheet.")
+            st.warning("⚠️ Could not update scores in Google Sheet.")
 
         st.markdown("### 🏆 Scores")
         st.dataframe(score_df)
@@ -117,8 +98,8 @@ with player_tab:
             if psubmit and pname.strip() and pans.strip():
                 try:
                     answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
-                    st.success("Answer submitted!")
+                    st.success("✅ Answer submitted!")
                 except:
-                    st.error("Failed to submit your answer.")
+                    st.error("❌ Failed to submit your answer.")
     else:
         st.info("Waiting for host to set a question.")

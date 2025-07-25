@@ -86,25 +86,33 @@ with host_tab:
         st.markdown("### 🏆 Scores")
         st.dataframe(pd.DataFrame(updated))
 
-# --- PLAYER TAB ---
+# --- PLAYER VIEW ---
 with player_tab:
     st.subheader("🙋 Player View")
 
-    q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
-    latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
+    # Add a refresh button
+    if st.button("🔄 Refresh Question"):
+        st.session_state.pop("submitted", None)
+        st.session_state.pop("answer_input", None)
+        st.experimental_rerun()
 
-    if latest_q:
-        st.markdown(f"**Current Question:** {latest_q}")
-        pname = st.text_input("Your Name", key="name_input", value=st.session_state.get("player_name", ""))
-        if pname:
-            st.session_state["player_name"] = pname
+    # Get latest question
+    q_records = questions_ws.get_all_records()
+    latest_question = q_records[-1]["QUESTION_TEXT"] if q_records else None
 
-        with st.form("answer_form"):
-            pans = st.text_input("Your Answer")
-            submit = st.form_submit_button("Submit Answer")
-            if submit and pname.strip() and pans.strip():
-                answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
-                st.success("Answer submitted!")
+    if latest_question:
+        st.markdown(f"**Current Question:** {latest_question}")
+        with st.form("player_submission_form", clear_on_submit=True):
+            pname = st.text_input("Your Name", key="player_name")
+            pans = st.text_input("Your Answer", key="answer_input")
+            psubmit = st.form_submit_button("Submit Answer")
+            if psubmit and pname.strip() and pans.strip():
+                answers_ws.append_row([latest_question, pname.strip(), pans.strip().lower()])
+                st.session_state.submitted = True
+
+        if st.session_state.get("submitted"):
+            st.success("Answer submitted!", icon="✅")
+            # Hide message after 4 seconds
+            st.experimental_rerun()
     else:
-        st.info("Waiting for host to start the round.")
-
+        st.info("Waiting for host to set a question.")

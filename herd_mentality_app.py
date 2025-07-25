@@ -8,7 +8,7 @@ import os
 import certifi
 import json
 
-# --- Setup SSL ---
+# Set SSL certificate path
 os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # --- Google Sheets setup ---

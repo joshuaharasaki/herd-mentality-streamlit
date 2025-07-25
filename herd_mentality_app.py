@@ -51,7 +51,7 @@ with host_tab:
         st.success("Game has been reset.")
 
     question = st.text_input("Enter question for this round:")
-    if st.button("Start Round"):
+    if st.button("Start Round") and question.strip():
         questions_ws.append_row([question])
         st.session_state["question"] = question
         st.success("Question started!")
@@ -61,6 +61,7 @@ with host_tab:
 
     df_answers_all = safe_load(answers_ws, ["QUESTION_TEXT", "Player", "Answer"])
     df_answers = df_answers_all[df_answers_all["QUESTION_TEXT"] == current_question]
+
     st.markdown("### 📥 Submitted Answers")
     st.dataframe(df_answers)
 
@@ -95,21 +96,18 @@ with player_tab:
     q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
     latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
 
-    refresh = st.button("🔃 Refresh Question")
-
     if latest_q:
-        if refresh:
-            st.experimental_rerun()
-
         st.markdown(f"**Current Question:** {latest_q}")
+
         pname = st.text_input("Your Name", key="name_input", value=st.session_state.get("player_name", ""))
         if pname:
             st.session_state["player_name"] = pname
 
+        # Force re-render of answer box by tying it to the current question
+        answer_key = f"answer_input_{latest_q}"
         with st.form("answer_form"):
-            pans = st.text_input("Your Answer", key="answer_input")
+            pans = st.text_input("Your Answer", key=answer_key)
             submit = st.form_submit_button("Submit Answer")
-
             if submit and pname.strip() and pans.strip():
                 answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
                 st.success("Answer submitted!")

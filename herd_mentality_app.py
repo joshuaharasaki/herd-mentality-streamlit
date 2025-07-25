@@ -40,7 +40,7 @@ def safe_load(ws, cols):
 with host_tab:
     st.subheader("👑 Host Dashboard")
 
-    if st.button("\ud83d\udd04 Reset Game"):
+    if st.button("🔄 Reset Game"):
         answers_ws.clear()
         scores_ws.clear()
         questions_ws.clear()
@@ -118,4 +118,5 @@ with player_tab:
                 st.session_state["answer_input"] = ""
     else:
         st.info("Waiting for host to start the round.")
+
 

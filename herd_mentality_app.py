@@ -7,28 +7,22 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import certifi
 import json
-
 # SSL fix
 os.environ['SSL_CERT_FILE'] = certifi.where()
-
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 google_creds_dict = json.loads(st.secrets["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(google_creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open("Herd Mentality")
-
 # Reference worksheets
 answers_ws = sheet.worksheet("answers")
 scores_ws = sheet.worksheet("scores")
 questions_ws = sheet.worksheet("questions")
-
 # Page layout
 st.set_page_config(page_title="🐄 Herd Mentality", layout="centered")
 st.title("🐄 Herd Mentality Game")
-
 host_tab, player_tab = st.tabs(["👑 Host", "🙋 Player"])
-
 # Utility to safely load data
 def safe_load(ws, cols):
     try:
@@ -36,11 +30,9 @@ def safe_load(ws, cols):
         return pd.DataFrame(records) if records else pd.DataFrame(columns=cols)
     except:
         return pd.DataFrame(columns=cols)
-
 # --- HOST TAB ---
 with host_tab:
     st.subheader("👑 Host Dashboard")
-
     if st.button("🔄 Reset Game"):
         answers_ws.clear()
         scores_ws.clear()
@@ -52,15 +44,17 @@ with host_tab:
 
     question = st.text_input("Enter question for this round:")
     if st.button("Start Round") and question.strip():
-        questions_ws.append_row([question])
-        st.session_state["question"] = question
+        questions_ws.append_row([question.strip()])
+        st.session_state["question"] = question.strip()
         st.success("Question started!")
 
-    current_question = st.session_state.get("question", "No question yet.")
-    st.markdown(f"### ❓ Current Question: {current_question}")
+    # Get latest question from sheet (not just from session)
+    q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
+    latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
+    st.markdown(f"### ❓ Current Question: {latest_q or 'No question yet.'}")
 
     df_answers_all = safe_load(answers_ws, ["QUESTION_TEXT", "Player", "Answer"])
-    df_answers = df_answers_all[df_answers_all["QUESTION_TEXT"] == current_question]
+    df_answers = df_answers_all[df_answers_all["QUESTION_TEXT"] == latest_q] if latest_q else pd.DataFrame(columns=["QUESTION_TEXT", "Player", "Answer"])
 
     st.markdown("### 📥 Submitted Answers")
     st.dataframe(df_answers)
@@ -74,7 +68,6 @@ with host_tab:
         df_scores = safe_load(scores_ws, ["Player", "Score", "Pink Cow"])
         score_dict = dict(zip(df_scores["Player"], df_scores["Score"])) if not df_scores.empty else {}
         pink_holder = None
-
         for _, row in df_answers.iterrows():
             player, answer = row["Player"], row["Answer"].lower()
             if answer in majority and len(majority) == 1:
@@ -92,27 +85,23 @@ with host_tab:
 # --- PLAYER TAB ---
 with player_tab:
     st.subheader("🙋 Player View")
-
     q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
     latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
-
     if latest_q:
         st.markdown(f"**Current Question:** {latest_q}")
-
         pname = st.text_input("Your Name", key="name_input", value=st.session_state.get("player_name", ""))
         if pname:
             st.session_state["player_name"] = pname
-
-        # Force re-render of answer box by tying it to the current question
-        answer_key = f"answer_input_{latest_q}"
         with st.form("answer_form"):
-            pans = st.text_input("Your Answer", key=answer_key)
+            pans = st.text_input("Your Answer")
             submit = st.form_submit_button("Submit Answer")
             if submit and pname.strip() and pans.strip():
                 answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
                 st.success("Answer submitted!")
     else:
         st.info("Waiting for host to start the round.")
+
+
 
 
 

@@ -100,32 +100,32 @@ with host_tab:
 with player_tab:
     st.subheader("🙋 Player View")
 
-    # Load current question
     q_df = safe_load(questions_ws, ["QUESTION_TEXT"])
     latest_q = q_df["QUESTION_TEXT"].iloc[-1] if not q_df.empty else None
 
     if latest_q:
         st.markdown(f"**Current Question:** {latest_q}")
 
-        # Player name persists
+        # Persist player name
         pname = st.text_input("Your Name", key="name_input", value=st.session_state.get("player_name", ""))
         if pname:
             st.session_state["player_name"] = pname
 
-        # Answer input
+        # Safely initialize answer input
         if "answer_input" not in st.session_state:
-            st.session_state.answer_input = ""
+            st.session_state["answer_input"] = ""
 
-        st.session_state.refresh_question = st.button("🔃 Refresh Question")
-        if st.session_state.refresh_question:
-            st.session_state.answer_input = ""
+        # Refresh button (resets only the answer box)
+        if st.button("🔃 Refresh Question"):
+            st.session_state["answer_input"] = ""
 
         with st.form("answer_form"):
-            pans = st.text_input("Your Answer", key="answer_input", value=st.session_state.answer_input)
+            pans = st.text_input("Your Answer", key="answer_input", value=st.session_state["answer_input"])
             submit = st.form_submit_button("Submit Answer")
             if submit and pname.strip() and pans.strip():
                 answers_ws.append_row([latest_q, pname.strip(), pans.strip().lower()])
                 st.success("Answer submitted!", icon="✅")
-                st.session_state.answer_input = ""
+                st.session_state["answer_input"] = ""
     else:
         st.info("Waiting for host to start the round.")
+
